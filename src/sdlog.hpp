@@ -10,7 +10,6 @@
 #include <Arduino.h>
 #include <ctime>
 #include "utilities.h"
-#include "ESPTelnet.h"
 #include "boards.hpp"
 
 #define MAX_LOG_SIZE 500000 // 500000 default
@@ -52,8 +51,6 @@ public:
     void appendBufferCSV(const char *format, ...);
 
     void sendBufferCSV();
-
-    void printTel(unsigned int chars, ESPTelnet &tel);
 
     File logFile(char op);
 

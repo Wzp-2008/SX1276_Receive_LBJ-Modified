@@ -436,54 +436,6 @@ File SD_LOG::logFile(char op) {
     return log;
 }
 
-void SD_LOG::printTel(unsigned int chars, ESPTelnet &tel) {
-    log.close();
-    uint32_t pos, left{};
-    File log_r = filesys->open(log_path, "r");
-    if (chars < log_r.size())
-        pos = log_r.size() - chars;
-    else {
-        left = chars - log_r.size();
-        pos = 0;
-    }
-    // Serial.println("LEFT = " + String(chars - log_r.size()));
-    String line;
-    if (!log_r.seek(pos))
-        Serial.println("[SDLOG] seek failed!");
-    while (log_r.available()) {
-        line = log_r.readStringUntil('\n');
-        if (line) {
-            tel.print(line);
-            tel.print("\n");
-        } else
-            tel.printf("[SDLOG] Read failed!\n");
-    }
-    if (left) {
-        // Serial.printf("SEEK LAST LEFT %u\n", left);
-        char last_file_name[32];
-        sprintf(last_file_name, "LOG_%04d.txt", log_count - 2);
-        String log_last_path = String(log_directory) + '/' + String(last_file_name);
-        Serial.println(log_last_path);
-        log_r = filesys->open(log_last_path, "r");
-        if (left < log_r.size())
-            pos = log_r.size() - left;
-        else
-            pos = 0;
-        if (!log_r.seek(pos)) {
-            Serial.println("[SDLOG] seek failed!");
-        }
-        while (log_r.available()) {
-            line = log_r.readStringUntil('\n');
-            if (line) {
-                tel.print(line);
-                tel.print("\n");
-            } else
-                tel.print("[SDLOG] Read failed!\n");
-        }
-    }
-    log = filesys->open(log_path, "a");
-}
-
 void SD_LOG::disableSizeCheck() {
     if (log.size() >= MAX_LOG_SIZE) {
         log.close();

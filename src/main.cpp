@@ -43,11 +43,6 @@
 #include <BLECharacteristic.h>
 #include <ArduinoJson.h>
 
-// configure the wifi connection
-String wifiSSID = "CMCC-102";
-String wifiPassword = "WZP433200";
-#define NETWORK_TIMEOUT 1800000 // 30 minutes
-
 #define WDT_TIMEOUT 20 // sec
 // #define WDT_RST_PERIOD 4000 // ms
 #define FD_TASK_STACK_SIZE 8000
@@ -111,12 +106,7 @@ bool exec_init_f80 = false;
 // bool agc_triggered = false;
 bool low_volt_warned = false;
 bool oled_off = false;
-bool give_tel_rssi = false;
-bool give_tel_gain = false;
-bool tel_set_ppm = false;
-bool no_wifi = true;
 bool have_cd = false;
-bool telnet_online = false;
 bool ble_enabled = true;
 bool beep_enabled = true;
 SD_LOG sd1;
@@ -234,21 +224,11 @@ void showInitComp()
     u8g2->clearBuffer();
     u8g2->setFont(u8g2_font_squeezed_b7_tr);
     // bottom (0,56,128,8)
-    if (!no_wifi)
+    u8g2->drawStr(0, 64, BLE_DEVICE_NAME);
+    if (have_sd)
     {
-        String ipa = WiFi.localIP().toString();
-        u8g2->drawStr(0, 64, ipa.c_str());
-    }
-    else
-    {
-        u8g2->drawStr(0, 64, BLE_DEVICE_NAME);
-    }
-    if (have_sd && WiFiClass::status() == WL_CONNECTED)
-        u8g2->drawStr(89, 64, "D");
-    else if (have_sd)
         u8g2->drawStr(89, 64, "L");
-    else if (WiFiClass::status() == WL_CONNECTED)
-        u8g2->drawStr(89, 64, "N");
+    }
     char buffer[32];
     if (getLocalTime(&time_info, 0))
     {
@@ -313,21 +293,13 @@ void updateInfo()
     u8g2->setDrawColor(0);
     u8g2->drawBox(0, 56, 128, 8);
     u8g2->setDrawColor(1);
-    if (!no_wifi)
-    {
-        String ipa = WiFi.localIP().toString();
-        u8g2->drawStr(0, 64, ipa.c_str());
-    }
-    else
-        u8g2->drawStr(0, 64, BLE_DEVICE_NAME);
+    u8g2->drawStr(0, 64, BLE_DEVICE_NAME);
     sprintf(buffer, "%.1f", getBias(actual_frequency));
     u8g2->drawStr(73, 64, buffer);
-    if (sd1.status() && WiFiClass::status() == WL_CONNECTED)
-        u8g2->drawStr(89, 64, "D");
-    else if (sd1.status())
+    if (sd1.status())
+    {
         u8g2->drawStr(89, 64, "L");
-    else if (WiFiClass::status() == WL_CONNECTED)
-        u8g2->drawStr(89, 64, "N");
+    }
 
     if (getLocalTime(&time_info, 0))
     {
@@ -609,35 +581,16 @@ void dualPrintf(bool time_stamp, const char *format, ...)
 
     // Output to Serial
     Serial.print(buffer.data());
-    if (telnet_online)
-    { // code from Multimon-NG unixinput.c 还得是multimon-ng，chatGPT写了四五个版本都没解决。
-        if (is_startline)
-        {
-            telnet.print("\r> ");
-            if (time_stamp && getLocalTime(&time_info, 1))
-                telnet.printf("\r%d-%02d-%02d %02d:%02d:%02d > ", time_info.tm_year + 1900, time_info.tm_mon + 1,
-                              time_info.tm_mday, time_info.tm_hour, time_info.tm_min, time_info.tm_sec);
-            is_startline = false;
-        }
-        telnet.print(buffer.data());
-        if (nullptr != strchr(buffer.data(), '\n'))
-        {
-            is_startline = true;
-            telnet.print("\r< ");
-        }
-    }
 }
 
-void dualPrint(const char *fmt)
+inline void dualPrint(const char *fmt)
 {
     Serial.print(fmt);
-    telnet.print(fmt);
 }
 
-void dualPrintln(const char *fmt)
+inline void dualPrintln(const char *fmt)
 {
     Serial.println(fmt);
-    telnet.println(fmt);
 }
 
 String printResetReason(esp_reset_reason_t reset)
@@ -1009,96 +962,6 @@ void setup()
         u8g2->sendBuffer();
     }
 
-#ifdef USE_SMARTCONFIG
-    // initialize wireless network.
-    Serial.printf("Connecting to WiFi\n");
-
-    Preferences preferences;
-    preferences.begin("wifi-config", false);
-
-    String savedSSID = preferences.getString("ssid", "");
-    String savedPassword = preferences.getString("password", "");
-
-    if (!savedSSID.isEmpty() && !savedPassword.isEmpty())
-    {
-        if (u8g2)
-        {
-            u8g2->setDrawColor(0);
-            u8g2->drawBox(0, 42, 128, 14);
-            u8g2->setDrawColor(1);
-            u8g2->setCursor(0, 52);
-            u8g2->println("Waiting for WiFi...");
-            u8g2->sendBuffer();
-        }
-        if (!connectToWiFi(savedSSID, savedPassword, 10000))
-        {
-            if (u8g2)
-            {
-                u8g2->setDrawColor(0);
-                u8g2->drawBox(0, 42, 128, 14);
-                u8g2->setDrawColor(1);
-                u8g2->setCursor(0, 40);
-                u8g2->println("Failed to connect to Wifi");
-                u8g2->setCursor(0, 52);
-                u8g2->println("Waiting for SmartConfig...");
-                u8g2->sendBuffer();
-            }
-            performSmartConfig();
-        }
-    }
-    else
-    {
-        if (u8g2)
-        {
-            u8g2->setDrawColor(0);
-            u8g2->drawBox(0, 42, 128, 14);
-            u8g2->setDrawColor(1);
-            u8g2->setCursor(0, 52);
-            u8g2->println("Waiting for SmartConfig...");
-            u8g2->sendBuffer();
-        }
-        performSmartConfig();
-    }
-
-    Serial.print("[Network]IP Address: ");
-    Serial.println(WiFi.localIP());
-    WiFi.setAutoReconnect(true);
-    WiFi.persistent(true);
-    preferences.putString("ssid", WiFi.SSID());
-    preferences.putString("password", WiFi.psk());
-    preferences.end();
-    wifiSSID = WiFi.SSID();
-    wifiPassword = WiFi.psk();
-#else
-    // initialize wireless network.
-    Serial.printf("Connecting to WiFi %s\n", wifiSSID.c_str());
-    if (u8g2)
-    {
-        u8g2->setDrawColor(0);
-        u8g2->drawBox(0, 42, 128, 14);
-        u8g2->setDrawColor(1);
-        u8g2->drawStr(0, 52, "Connecting to WiFi...");
-        u8g2->sendBuffer();
-    }
-    connectToWiFi(wifiSSID, wifiPassword, 1000);
-#endif
-
-    if (isConnected())
-    {
-        ip = WiFi.localIP();
-        // Serial.println();
-        Serial.print("[Telnet] ");
-        Serial.print(ip);
-        Serial.print(":");
-        Serial.println(port);
-        setupTelnet(); // todo: find another library / modify the code to support multiple client connection.
-    }
-    else
-    {
-        // Serial.println();
-        Serial.println("Error connecting to WiFi, Telnet startup skipped.");
-    }
-
     // Initialize SX1276
     dualPrint("[SX1276] Initializing ... ");
     int state = initPager();
@@ -1114,9 +977,6 @@ void setup()
         while (true)
             ;
     }
-
-    //    if(WiFi.getSleep())
-    //        Serial.println("WIFI Sleep enabled.");
 
     // start thread watchdog
     esp_task_wdt_init(WDT_TIMEOUT, true);
@@ -1159,40 +1019,6 @@ void setup()
     bootSound();
 }
 
-// Loop functions
-void handleTelnetCall()
-{
-    if (give_tel_rssi)
-    {
-        telnet.printf("> RSSI %3.2f dBm.\n", radio.getRSSI(false, true));
-        give_tel_rssi = false;
-        telnet.print("< ");
-    }
-    if (give_tel_gain)
-    {
-        telnet.printf("> Gain Pos %d \n", radio.getGain());
-        give_tel_gain = false;
-        telnet.print("< ");
-    }
-    if (tel_set_ppm)
-    {
-        int16_t state = radio.setFrequency(actualFreq(ppm));
-        if (state == RADIOLIB_ERR_NONE)
-        {
-            telnet.printf("> Actual Frequency %f MHz\n", actualFreq(ppm));
-            Serial.printf("[Telnet] > Actual Frequency %f MHz\n", actualFreq(ppm));
-        }
-        else
-        {
-            telnet.printf("> Failure, Code %d\n", state);
-            Serial.printf("[Telnet] > Failure, Code %d\n", state);
-        }
-        telnet.printf("> ppm set to %.f\n", ppm);
-        tel_set_ppm = false;
-        telnet.print("< ");
-    }
-}
-
 void handleSync()
 {
     if (pager.gotSyncState())
@@ -1216,47 +1042,6 @@ void handleSync()
         if (rxInfo.fer == 0)
             rxInfo.fer = radio.getFrequencyError();
     }
-}
-
-void handleTelnet()
-{
-    if (isConnected() && !telnet_online)
-    {
-        ip = WiFi.localIP();
-        Serial.printf("WIFI Connection to %s established.\n", wifiSSID.c_str());
-        Serial.print("[Telnet] ");
-        Serial.print(ip);
-        Serial.print(":");
-        Serial.println(port);
-        setupTelnet();
-    }
-    telnet.loop();
-}
-
-void checkNetwork()
-{
-    if (isConnected() && net_timer != 0)
-        net_timer = 0;
-    else if (!isConnected() && net_timer == 0)
-        net_timer = millis64();
-
-    if (!isConnected() && millis64() - net_timer > NETWORK_TIMEOUT && !no_wifi)
-    { // 暂定解决方案：超30分钟断wifi
-        telnet.stop();
-        telnet_online = false;
-        WiFi.disconnect();
-        WiFiClass::mode(WIFI_OFF);
-        Serial.println("WIFI off after 30 minutes without connection.");
-        no_wifi = true;
-    }
-
-    if (ip_last != WiFi.localIP())
-    {
-        Serial.print("Local IP ");
-        Serial.print(WiFi.localIP());
-        Serial.print("\n");
-    }
-    ip_last = WiFi.localIP();
 }
 
 void handleBleConnections()
@@ -1372,10 +1157,6 @@ void loop()
         changeCpuFreq(240);
     }
 
-    checkNetwork();
-    handleTelnet();
-    handleTelnetCall();
-
     if (ble_enabled)
     {
         handleBleConnections();
@@ -1392,20 +1173,7 @@ void loop()
 
     if (millis64() > 60000 && !exec_init_f80) // lower down frequency 60 sec after startup and idle.
     {
-        if (isConnected())
-            setCpuFrequencyMhz(80);
-        else
-        {
-            WiFiClass::mode(WIFI_OFF);
-            setCpuFrequencyMhz(80);
-            WiFiClass::mode(WIFI_MODE_STA);
-#ifdef USE_SMARTCONFIG
-            // connectWiFi();
-            WiFi.begin(wifiSSID, wifiPassword);
-#else
-            WiFi.begin(wifiSSID, wifiPassword);
-#endif
-        }
+        setCpuFrequencyMhz(80);
         exec_init_f80 = true;
     }
 #ifdef HAS_DISPLAY
@@ -1712,7 +1480,6 @@ void formatDataTask(void *pVoid)
 
             // sd1.enableSizeCheck();
 
-            printDataTelnet(db_local->pocsagData, db_local->lbjData, rxInfo);
             Serial.printf("telprint complete.[%llu]", millis64() - runtime_timer);
             // Serial.printf("[FD-Task] Stack High Mark TRI-OUT %u\n", uxTaskGetStackHighWaterMark(nullptr));
             // Serial.printf("type %d \n",lbj.type);
