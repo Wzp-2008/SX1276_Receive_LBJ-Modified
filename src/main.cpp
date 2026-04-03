@@ -97,7 +97,6 @@ struct lbj_data current_lbj_data;
 SemaphoreHandle_t data_mutex = nullptr;
 
 void sendTrainDataOverBLE(const struct lbj_data &l, const struct rx_info &r, bool isTest = false);
-void readCsvAndSendBLE();
 
 inline float actualFreq(float bias)
 {
@@ -683,43 +682,6 @@ String printResetReason(esp_reset_reason_t reset)
     return str;
 }
 
-void LBJTEST()
-{
-    PagerClient::pocsag_data pocdat[16];
-    pocdat[0].str = "37012";
-    pocdat[0].addr = 1234000;
-    pocdat[0].func = 1;
-    pocdat[0].is_empty = false;
-    pocdat[0].len = 15;
-    pocdat[1].str = "30479100018530U)*9UU*6 (-(202011719040139058291000";
-    pocdat[1].addr = 1234002;
-    pocdat[1].func = 1;
-    pocdat[1].is_empty = false;
-    pocdat[1].len = 0;
-    //    Serial.println("[LBJ] 测试输出 机车编号 位置 XX°XX′XX″ ");
-    //    dualPrintf(false,"[LBJ] 测试输出 机车编号 位置 XX°XX′XX″ \n");
-    struct lbj_data lbj;
-
-    // db = new data_bond;
-    // db->pocsagData[0].addr = 1234000;
-    // db->pocsagData[0].str = "37012  15  1504";
-    // db->pocsagData[0].func = 1;
-    // db->pocsagData[0].is_empty = false;
-    // db->pocsagData[0].len = 15;
-    // db->pocsagData[1].str = "20202350018530U)*9UU*6 (-(202011719040139058291000";
-    // db->pocsagData[1].addr = 1234002;
-    // db->pocsagData[1].func = 1;
-    // db->pocsagData[1].is_empty = false;
-    // db->pocsagData[1].len = 0;
-    readDataLBJ(pocdat, &lbj);
-    printDataSerial(pocdat, lbj, rxInfo);
-    // // appendDataLog(pocdat, lbj, rxInfo);
-    // // printDataTelnet(pocdat, lbj, rxInfo);
-    // rxInfo.rssi = 0;
-    // rxInfo.fer = 0;
-    // delete db;
-}
-
 int initPager()
 { // initialize SX1276 with default settings
 
@@ -936,12 +898,6 @@ void sendTrainDataOverBLE(const struct lbj_data &l, const struct rx_info &r, boo
     {
         Serial.println("[BLE] Unknown exception occurred while sending data");
     }
-}
-void readCsvAndSendBLE() {}
-
-bool sendNextHistoryDataOverBLE()
-{
-    return false;
 }
 
 // SETUP
