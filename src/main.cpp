@@ -44,8 +44,8 @@
 #include <ArduinoJson.h>
 
 // configure the wifi connection
-String wifiSSID = "MI CC9 Pro";
-String wifiPassword = "11223344";
+String wifiSSID = "CMCC-102";
+String wifiPassword = "WZP433200";
 #define NETWORK_TIMEOUT 1800000 // 30 minutes
 
 #define WDT_TIMEOUT 20 // sec
@@ -59,6 +59,7 @@ SX1276 radio = new Module(RADIO_CS_PIN, RADIO_DIO0_PIN, RADIO_RST_PIN, RADIO_DIO
 // receiving packets requires connection
 // to the module direct output pin
 const int pin = RADIO_BUSY_PIN;
+const int spk = 21;
 float rssi_cache = 0;
 // float fer = 0;
 float fers[32]{};
@@ -119,6 +120,7 @@ bool no_wifi = true;
 bool have_cd = false;
 bool telnet_online = false;
 bool ble_enabled = true;
+bool beep_enabled = true;
 SD_LOG sd1;
 
 class SafeServerCallbacks: public BLEServerCallbacks {
@@ -491,6 +493,29 @@ void showLBJ2(const struct lbj_data &l) {
 
 #endif
 
+void beep() {
+    if (!beep_enabled) return;
+    for(byte i = 0; i < 3; i++) {
+        tone(spk, 880); // A4
+        delay(100);
+        noTone(spk);
+        delay(50);
+    }
+}
+
+void bootSound() {
+    if (!beep_enabled) return;
+  int notes[] = {262, 330, 392, 523};  // C4, E4, G4, C5
+  int durations[] = {120, 120, 120, 220};
+
+  for (int i = 0; i < 4; i++) {
+    tone(spk, notes[i]);
+    delay(durations[i]);
+    noTone(spk);
+    delay(30);
+  }
+}
+
 void dualPrintf(bool time_stamp, const char *format, ...) {
     va_list args;
     va_start(args, format);
@@ -813,6 +838,39 @@ void setup() {
     sd1.setFS(SD);
     delay(150);
 
+    // Try to read settings from sd
+    if (have_sd) {
+        if (SD.exists("/settings.txt")) {
+            File settingsFile = SD.open("/settings.txt");
+            if (settingsFile) {
+                // ignore first line comment
+                settingsFile.readStringUntil('\n');
+                String bools = settingsFile.readStringUntil('\n');
+                settingsFile.close();
+                bools.trim();
+                bools.replace(" ", "");
+                bools.replace("\t", "");
+                if (bools.charAt(0) == '1') {
+                    ble_enabled = true;
+                    Serial.println("[SETTINGS] BLE Enabled");
+                } else {
+                    ble_enabled = false;
+                    Serial.println("[SETTINGS] BLE Disabled");
+                }
+                if (bools.charAt(1) == '1') {
+                    beep_enabled = true;
+                    Serial.println("[SETTINGS] Beep Enabled");
+                } else {
+                    beep_enabled = false;
+                    Serial.println("[SETTINGS] Beep Disabled");
+                }
+            } else {
+                Serial.println("[ERROR] Failed to open settings file!");
+            }
+        }
+    }
+
+
     data_mutex = xSemaphoreCreateMutex();
     if (data_mutex == nullptr) {
         Serial.println("[ERROR] Failed to create data mutex!");
@@ -993,6 +1051,7 @@ void setup() {
     }
 
     xTaskCreatePinnedToCore(formatDataTask, "task_fd", FD_TASK_STACK_SIZE, nullptr, 2, nullptr, ARDUINO_RUNNING_CORE);
+    bootSound();
 }
 
 // Loop functions
@@ -1544,7 +1603,7 @@ void formatDataTask(void *pVoid) {
             sd1.append(2, "LBJ读取完成，用时[%llu]\n", millis64() - runtime_timer);
             Serial.printf("Read complete.[%llu]", millis64() - runtime_timer);
             // Serial.printf("[FD-Task] Stack High Mark rLBJ %u\n", uxTaskGetStackHighWaterMark(nullptr));
-
+            beep();
             printDataSerial(db_local->pocsagData, db_local->lbjData, rxInfo);
             sd1.append(2, "串口输出完成，用时[%llu]\n", millis64() - runtime_timer);
             
