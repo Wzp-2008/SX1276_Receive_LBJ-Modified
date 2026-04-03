@@ -673,15 +673,19 @@ class MyCallbacks : public BLECharacteristicCallbacks
 {
     void onWrite(BLECharacteristic *pCharacteristic) override
     {
-        std::string rxValue = pCharacteristic->getValue();
-        if (rxValue.length() > 0)
-        {
-            Serial.print("接收到数据: ");
-            for (int i = 0; i < rxValue.length(); i++)
-            {
-                Serial.print(rxValue[i]);
+        String rxValue((pCharacteristic->getValue()).c_str());
+        if (rxValue.startsWith("TIME:")) {
+            rxValue.replace("TIME:", "");
+            Serial.printf("[BLE] Received time sync command, time: %s\n", rxValue.c_str());
+            struct tm tm;
+            if (strptime(rxValue.c_str(), "%Y-%m-%d %H:%M:%S", &tm) != nullptr) {
+                time_t t = mktime(&tm);
+                struct timeval now = { .tv_sec = t, .tv_usec = 0 };
+                settimeofday(&now, nullptr);
+                Serial.println("[BLE] Time synchronized successfully");
+            } else {
+                Serial.println("[BLE] Error parsing time sync command");
             }
-            Serial.println();
         }
     }
 };
@@ -1526,5 +1530,3 @@ void formatDataTask(void *pVoid)
         }
     }
 }
-
-// END OF FILE.
