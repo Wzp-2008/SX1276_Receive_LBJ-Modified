@@ -54,7 +54,7 @@ SX1276 radio = new Module(RADIO_CS_PIN, RADIO_DIO0_PIN, RADIO_RST_PIN, RADIO_DIO
 // receiving packets requires connection
 // to the module direct output pin
 const int pin = RADIO_BUSY_PIN;
-const int spk = 21;
+const int spk = 19;
 float rssi_cache = 0;
 // float fer = 0;
 float fers[32]{};
