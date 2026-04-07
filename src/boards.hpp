@@ -14,6 +14,11 @@
 
 #endif
 
+// Audio Play
+#define PWM_PIN 12
+#define PWM_CH 0
+#define PWM_FREQ 20000
+#define PWM_RES 8
 
 #ifdef HAS_DISPLAY
 
@@ -321,6 +326,8 @@ extern float voltage;
 
 extern SPIClass SDSPI;
 extern bool have_sd;
+extern uint32_t dataStart;
+extern uint32_t sampleRate;
 
 void initBoard();
 

@@ -35,6 +35,7 @@
 #include <RadioLib.h>
 #include "coredump.h"
 #include "customfont.h"
+#include "audio.hpp"
 #include <esp_task_wdt.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -54,7 +55,6 @@ SX1276 radio = new Module(RADIO_CS_PIN, RADIO_DIO0_PIN, RADIO_RST_PIN, RADIO_DIO
 // receiving packets requires connection
 // to the module direct output pin
 const int pin = RADIO_BUSY_PIN;
-const int spk = 12;
 float rssi_cache = 0;
 // float fer = 0;
 float fers[32]{};
@@ -108,7 +108,6 @@ bool low_volt_warned = false;
 bool oled_off = false;
 bool have_cd = false;
 bool ble_enabled = true;
-bool beep_enabled = true;
 SD_LOG sd1;
 
 class SafeServerCallbacks : public BLEServerCallbacks
@@ -155,36 +154,6 @@ void handleCarrier();
 void handlePreamble();
 
 void revertFrequency();
-
-void beep()
-{
-    if (!beep_enabled)
-        return;
-    for (byte i = 0; i < 3; i++)
-    {
-        tone(spk, 880); // A4
-        delay(100);
-        noTone(spk);
-        delay(50);
-    }
-}
-
-void beep_warn()
-{
-    if (!beep_enabled)
-        return;
-    for (byte i = 0; i < 2; i++)
-    {
-        tone(spk, 880); // A4
-        delay(100);
-        noTone(spk);
-        delay(50);
-        tone(spk, 800); // A3
-        delay(100);
-        noTone(spk);
-        delay(50);
-    }
-}
 
 #ifdef HAS_DISPLAY
 
@@ -545,22 +514,6 @@ void showLBJ2(const struct lbj_data &l)
 
 #endif
 
-void bootSound()
-{
-    if (!beep_enabled)
-        return;
-    int notes[] = {262, 330, 392, 523}; // C4, E4, G4, C5
-    int durations[] = {120, 120, 120, 220};
-
-    for (int i = 0; i < 4; i++)
-    {
-        tone(spk, notes[i]);
-        delay(durations[i]);
-        noTone(spk);
-        delay(30);
-    }
-}
-
 void dualPrintf(bool time_stamp, const char *format, ...)
 {
     va_list args;
@@ -674,16 +627,20 @@ class MyCallbacks : public BLECharacteristicCallbacks
     void onWrite(BLECharacteristic *pCharacteristic) override
     {
         String rxValue((pCharacteristic->getValue()).c_str());
-        if (rxValue.startsWith("TIME:")) {
+        if (rxValue.startsWith("TIME:"))
+        {
             rxValue.replace("TIME:", "");
             Serial.printf("[BLE] Received time sync command, time: %s\n", rxValue.c_str());
             struct tm tm;
-            if (strptime(rxValue.c_str(), "%Y-%m-%d %H:%M:%S", &tm) != nullptr) {
+            if (strptime(rxValue.c_str(), "%Y-%m-%d %H:%M:%S", &tm) != nullptr)
+            {
                 time_t t = mktime(&tm);
-                struct timeval now = { .tv_sec = t, .tv_usec = 0 };
+                struct timeval now = {.tv_sec = t, .tv_usec = 0};
                 settimeofday(&now, nullptr);
                 Serial.println("[BLE] Time synchronized successfully");
-            } else {
+            }
+            else
+            {
                 Serial.println("[BLE] Error parsing time sync command");
             }
         }
@@ -902,6 +859,17 @@ void setup()
                     beep_enabled = false;
                     Serial.println("[SETTINGS] Beep Disabled");
                 }
+                if (bools.charAt(2) == '1')
+                {
+                    sound_enabled = true;
+                    Serial.println("[SETTINGS] Sound Enabled");
+                }
+                else
+                {
+                    sound_enabled = false;
+                    Serial.println("[SETTINGS] Sound Disabled");
+                }
+                volume = bools.charAt(3) - '0';
             }
             else
             {
@@ -1020,7 +988,7 @@ void setup()
     }
 
     xTaskCreatePinnedToCore(formatDataTask, "task_fd", FD_TASK_STACK_SIZE, nullptr, 2, nullptr, ARDUINO_RUNNING_CORE);
-    bootSound();
+    boot_sound();
 }
 
 void handleSync()
@@ -1510,6 +1478,13 @@ void formatDataTask(void *pVoid)
                 else if (db_local->lbjData.type == 2)
                 {
                     showLBJ2(db_local->lbjData);
+                }
+                if (sound_enabled)
+                {
+                    if (db_local->lbjData.train != "<NUL>" && db_local ->lbjData.direction != -1) {
+                        delay(200);
+                        sound_for_train(db_local->lbjData.lbj_class, db_local->lbjData.train, db_local->lbjData.direction);
+                    }
                 }
                 Serial.printf("Complete u8g2 [%llu]\n", millis64() - runtime_timer);
             }
