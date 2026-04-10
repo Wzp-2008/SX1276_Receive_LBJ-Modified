@@ -638,9 +638,9 @@ class MyCallbacks : public BLECharacteristicCallbacks
                 time_t t = mktime(&tm);
                 struct timeval now = {.tv_sec = t, .tv_usec = 0};
                 settimeofday(&now, nullptr);
-                #ifdef HAS_RTC
+#ifdef HAS_RTC
                 rtc.adjust(DateTime(t)); // RTC is in UTC+8, adjust the time accordingly
-                #endif
+#endif
                 Serial.println("[BLE] Time synchronized successfully");
             }
             else
@@ -1387,6 +1387,15 @@ void initFmtVars()
     }
 }
 
+struct Node
+{
+    String value;
+    Node *next;
+    Node *prev;
+};
+
+Node *cacheHeadNode = nullptr;
+
 void formatDataTask(void *pVoid)
 {
     data_bond *db_local = nullptr;
@@ -1485,9 +1494,47 @@ void formatDataTask(void *pVoid)
                 }
                 if (sound_enabled)
                 {
-                    if (db_local->lbjData.train != "<NUL>" && db_local ->lbjData.direction != -1) {
-                        delay(200);
-                        sound_for_train(db_local->lbjData.lbj_class, db_local->lbjData.train, db_local->lbjData.direction);
+                    String trainNo(db_local->lbjData.train);
+                    trainNo.replace(" ", "");
+                    trainNo.replace("-", "");
+                    trainNo.replace("<NUL>", "");
+                    if (trainNo != "" && db_local->lbjData.direction != -1)
+                    {
+                        Node *n = cacheHeadNode;
+                        bool inCache = false;
+                        int nodeCount = 0;
+                        while (n != nullptr)
+                        {
+                            if (n->value == trainNo)
+                            {
+                                inCache = true;
+                            }
+                            if (n->next == nullptr)
+                            {
+                                n = n->prev;
+                                break;
+                            }
+                            nodeCount++;
+                        }
+                        if (!inCache)
+                        {
+                            Node *newNode = new Node{
+                                .value = trainNo,
+                                .next = cacheHeadNode,
+                                .prev = nullptr};
+                            if (cacheHeadNode != nullptr)
+                            {
+                                cacheHeadNode->prev = newNode;
+                                cacheHeadNode = newNode;
+                                if (nodeCount >= 6)
+                                {
+                                    free(n->next);
+                                    n->next = nullptr;
+                                }
+                            }
+                            delay(200);
+                            sound_for_train(db_local->lbjData.lbj_class, trainNo, db_local->lbjData.direction);
+                        }
                     }
                 }
                 Serial.printf("Complete u8g2 [%llu]\n", millis64() - runtime_timer);
