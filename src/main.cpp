@@ -1505,7 +1505,7 @@ void formatDataTask(void *pVoid)
                         int nodeCount = 0;
                         while (n != nullptr)
                         {
-                            if (n->value == trainNo)
+                            if (n->value.equals(trainNo))
                             {
                                 inCache = true;
                             }
@@ -1525,13 +1525,13 @@ void formatDataTask(void *pVoid)
                             if (cacheHeadNode != nullptr)
                             {
                                 cacheHeadNode->prev = newNode;
-                                cacheHeadNode = newNode;
                                 if (nodeCount >= 6)
                                 {
                                     free(n->next);
                                     n->next = nullptr;
                                 }
                             }
+                            cacheHeadNode = newNode;
                             delay(200);
                             sound_for_train(db_local->lbjData.lbj_class, trainNo, db_local->lbjData.direction);
                         }
