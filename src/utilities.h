@@ -22,7 +22,7 @@
 // #define LoRa_frequency      915.0
 
 #define UNUSE_PIN                   (0)
-
+#define HAS_RTC
 #if defined(LILYGO_TBeam_V0_7)
 #define GPS_RX_PIN                  12
 #define GPS_TX_PIN                  15

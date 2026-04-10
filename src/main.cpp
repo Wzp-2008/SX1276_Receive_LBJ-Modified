@@ -627,6 +627,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
     void onWrite(BLECharacteristic *pCharacteristic) override
     {
         String rxValue((pCharacteristic->getValue()).c_str());
+        Serial.println("[BLE] Received data: " + rxValue);
         if (rxValue.startsWith("TIME:"))
         {
             rxValue.replace("TIME:", "");
@@ -637,6 +638,9 @@ class MyCallbacks : public BLECharacteristicCallbacks
                 time_t t = mktime(&tm);
                 struct timeval now = {.tv_sec = t, .tv_usec = 0};
                 settimeofday(&now, nullptr);
+                #ifdef HAS_RTC
+                rtc.adjust(DateTime(t)); // RTC is in UTC+8, adjust the time accordingly
+                #endif
                 Serial.println("[BLE] Time synchronized successfully");
             }
             else
@@ -694,7 +698,7 @@ void initBLE()
         Serial.println("[BLE] Error unable to create TX characteristic");
         return;
     }
-
+    pTxCharacteristic->setCallbacks(new MyCallbacks());
     BLE2902 *p2902Descriptor = new BLE2902();
     if (p2902Descriptor != nullptr)
     {

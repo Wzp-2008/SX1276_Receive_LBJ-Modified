@@ -85,7 +85,7 @@ tm rtcLibtoC(const DateTime &datetime) {
     time.tm_mday = datetime.day();
     time.tm_wday = datetime.dayOfTheWeek();
     time.tm_yday = 0;
-    time.tm_hour = datetime.hour();
+    time.tm_hour = datetime.hour() + 8;
     time.tm_min = datetime.minute();
     time.tm_sec = datetime.second();
     time.tm_isdst = 0;
